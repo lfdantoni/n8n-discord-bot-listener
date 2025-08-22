@@ -65,8 +65,10 @@ const server = app.listen(PORT, () => console.log(`proxy on :${PORT}`));
 
 // Apagar limpio (cuando EasyPanel manda SIGTERM al redeploy)
 process.on("SIGTERM", () => {
+  console.log("SIGTERM received");
   server.close(() => process.exit(0));
 });
 process.on("SIGINT", () => {
+  console.log("SIGINT received");
   server.close(() => process.exit(0));
 });
