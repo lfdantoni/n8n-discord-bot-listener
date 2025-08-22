@@ -52,3 +52,11 @@ app.post("/interactions", async (req, res) => {
 
 app.get("/healthz", (_, res) => res.send("ok"));
 app.listen(PORT, () => console.log(`proxy on :${PORT}`));
+
+// Apagar limpio (cuando EasyPanel manda SIGTERM al redeploy)
+process.on("SIGTERM", () => {
+  server.close(() => process.exit(0));
+});
+process.on("SIGINT", () => {
+  server.close(() => process.exit(0));
+});
