@@ -51,7 +51,7 @@ app.post("/interactions", async (req, res) => {
     const text = await r.text();
     console.log("Forwarded to n8n:", r.status, text);
 
-    const jsonResponse = await r.json();
+    const jsonResponse = JSON.parse(text);
 
     console.log("Time taken:", Date.now() - now, jsonResponse);
     res.status(r.status).json(jsonResponse);
