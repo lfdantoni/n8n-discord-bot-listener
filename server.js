@@ -23,6 +23,8 @@ app.post("/interactions", async (req, res) => {
   const ts = req.get("x-signature-timestamp");
   const raw = req.body; // Buffer
 
+    console.log("Received interaction:", JSON.parse(raw.toString()), sig, ts);
+
   if (!sig || !ts) return res.status(400).send("missing signature headers");
 
   const publicKey = getPublicKey(PUBLIC_KEY);
