@@ -7,6 +7,7 @@ app.use(express.raw({ type: "*/*" })); // crudo, sin JSON parse
 
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY; // tu Public Key del portal
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL; // webhook de producción n8n
+const PORT = process.env.PORT || 3000;
 
 // Función auxiliar para transformar la public key (hex → SPKI)
 function getPublicKey(pubKeyHex) {
@@ -49,4 +50,5 @@ app.post("/interactions", async (req, res) => {
   }
 });
 
-app.listen(3000, () => console.log("Discord proxy running on port 3000"));
+app.get("/healthz", (_, res) => res.send("ok"));
+app.listen(PORT, () => console.log(`proxy on :${PORT}`));
