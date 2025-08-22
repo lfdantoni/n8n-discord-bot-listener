@@ -49,7 +49,7 @@ app.post("/interactions", async (req, res) => {
     const text = await r.text();
 
     console.log("Time taken:", Date.now() - now);
-    res.status(r.status).send(text);
+    res.status(r.status).json(r.json());
   } catch (err) {
     res.status(500).send("forward failed");
   }
