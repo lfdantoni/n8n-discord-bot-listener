@@ -47,9 +47,10 @@ app.post("/interactions", async (req, res) => {
       body: raw
     });
     const text = await r.text();
+    const jsonResponse = await r.json();
 
-    console.log("Time taken:", Date.now() - now);
-    res.status(r.status).json(await r.json());
+    console.log("Time taken:", Date.now() - now, jsonResponse);
+    res.status(r.status).json(jsonResponse);
   } catch (err) {
     res.status(500).send("forward failed");
   }
