@@ -19,6 +19,7 @@ function getPublicKey(pubKeyHex) {
 }
 
 app.post("/interactions", async (req, res) => {
+  const now = Date.now();
   const sig = req.get("x-signature-ed25519");
   const ts = req.get("x-signature-timestamp");
   const raw = req.body; // Buffer
@@ -46,6 +47,8 @@ app.post("/interactions", async (req, res) => {
       body: raw
     });
     const text = await r.text();
+
+    console.log("Time taken:", Date.now() - now);
     res.status(r.status).send(text);
   } catch (err) {
     res.status(500).send("forward failed");
