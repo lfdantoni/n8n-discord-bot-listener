@@ -30,6 +30,8 @@ app.post("/interactions", async (req, res) => {
 
   const publicKey = getPublicKey(PUBLIC_KEY);
   const isValid = crypto.verify(null, Buffer.concat([Buffer.from(ts), raw]), publicKey, Buffer.from(sig, "hex"));
+
+  console.log("Signature valid:", isValid);
   if (!isValid) return res.status(401).send("invalid request signature");
 
   const body = JSON.parse(raw.toString());
@@ -47,6 +49,8 @@ app.post("/interactions", async (req, res) => {
       body: raw
     });
     const text = await r.text();
+    console.log("Forwarded to n8n:", r.status, text);
+
     const jsonResponse = await r.json();
 
     console.log("Time taken:", Date.now() - now, jsonResponse);
