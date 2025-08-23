@@ -103,7 +103,7 @@ if (BOT_TOKEN) {
 
   client.on(Events.MessageCreate, async (message) => {
     try {
-      if (message.author?.bot) return; // ignore bots
+      // if (message.author?.bot) return; // ignore bots
       if (CHANNEL_IDS.length && !CHANNEL_IDS.includes(message.channelId)) return;
 
       const payload = {
