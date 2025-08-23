@@ -108,7 +108,7 @@ if (BOT_TOKEN) {
 
       const payload = {
         event: "message_create",
-        message
+        message: JSON.stringify(message)
       };
 
       // Simple example: if you want to react locally:
