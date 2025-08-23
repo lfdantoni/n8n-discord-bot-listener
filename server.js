@@ -47,7 +47,7 @@ app.post("/interactions", async (req, res) => {
   }
 
   // (3) Slash command u otros => ACK inmediato (deferred)
-  if (interaction.type === 2) {
+  if (body.type === 2) {
     console.log("sending ACK");
     // Responder a Discord YA (evita timeout)
     res.setHeader("content-type", "application/json");
