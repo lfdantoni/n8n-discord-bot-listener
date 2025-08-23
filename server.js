@@ -1,15 +1,21 @@
 import express from "express";
 import crypto from "crypto";
 import fetch from "node-fetch";
+import { Client, GatewayIntentBits, Events, Partials } from "discord.js";
 
 const app = express();
-app.use(express.raw({ type: "*/*" })); // crudo, sin JSON parse
+app.use(express.raw({ type: "*/*" })); // raw, no JSON parsing
 
-const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY; // tu Public Key del portal
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL; // webhook de producción n8n
+
+// ====== REQUIRED ENV VARS ======
+const PUBLIC_KEY = (process.env.DISCORD_PUBLIC_KEY || "").trim();        // Public Key (HEX 64 chars or PEM)
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;                      // n8n PRODUCTION webhook for slash commands
+const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;                          // Bot token (for Gateway)
+const CHANNEL_IDS = (process.env.CHANNEL_IDS || "")                       // IDs of channels to listen to, comma-separated
+  .split(",").map(s => s.trim()).filter(Boolean);
 const PORT = process.env.PORT || 3000;
 
-// Función auxiliar para transformar la public key (hex → SPKI)
+// Helper function to transform the public key (hex → SPKI)
 function getPublicKey(pubKeyHex) {
   const spkiDer = Buffer.concat([
     Buffer.from("302a300506032b6570032100", "hex"),
@@ -41,15 +47,15 @@ app.post("/interactions", async (req, res) => {
 
   const body = JSON.parse(raw.toString());
 
-  // PING inicial
+  // Initial PING
   if (body.type === 1) {
     return res.json({ type: 1 });
   }
 
-  // (3) Slash command u otros => ACK inmediato (deferred)
+  // (3) Slash command or others => immediate ACK (deferred)
   if (body.type === 2) {
     console.log("sending ACK");
-    // Responder a Discord YA (evita timeout)
+    // Respond to Discord NOW (avoids timeout)
     res.setHeader("content-type", "application/json");
     res.status(200).send(JSON.stringify({ type: 5 }));
 
@@ -74,7 +80,79 @@ app.post("/interactions", async (req, res) => {
 app.get("/healthz", (_, res) => res.send("ok"));
 const server = app.listen(PORT, () => console.log(`proxy on :${PORT}`));
 
-// Apagar limpio (cuando EasyPanel manda SIGTERM al redeploy)
+
+// ====== Discord.js: listen to channel messages ======
+if (BOT_TOKEN) {
+  const client = new Client({
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent, // you need to enable "Message Content Intent" in the portal
+    ],
+    partials: [Partials.Channel],
+  });
+
+  client.once(Events.ClientReady, (c) => {
+    console.log(`bot logged in as ${c.user.tag}`);
+    if (CHANNEL_IDS.length) {
+      console.log(`listening channels: ${CHANNEL_IDS.join(", ")}`);
+    } else {
+      console.log(`listening ALL channels (no CHANNEL_IDS set)`);
+    }
+  });
+
+  client.on(Events.MessageCreate, async (message) => {
+    try {
+      if (message.author?.bot) return; // ignore bots
+      if (CHANNEL_IDS.length && !CHANNEL_IDS.includes(message.channelId)) return;
+
+      const payload = {
+        event: "message_create",
+        guild_id: message.guildId || null,
+        channel_id: message.channelId,
+        message_id: message.id,
+        author: {
+          id: message.author.id,
+          username: message.author.username,
+          discriminator: message.author.discriminator,
+          tag: message.author.tag,
+        },
+        content: message.content ?? "",
+        attachments: Array.from(message.attachments.values()).map(a => ({
+          id: a.id, url: a.url, content_type: a.contentType || null, size: a.size, filename: a.name
+        })),
+        timestamp: message.createdAt?.toISOString() || new Date().toISOString(),
+      };
+
+      // Simple example: if you want to react locally:
+      // if (payload.content.startsWith("!ping")) {
+      //   await message.reply("pong!");
+      // }
+
+      // Forward to n8n (optional)
+      if (N8N_WEBHOOK_URL) {
+        await fetch(N8N_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        console.log("msg:", payload);
+      }
+    } catch (e) {
+      console.error("message handler error:", e);
+    }
+  });
+
+  client.login(BOT_TOKEN).catch(err => {
+    console.error("discord login failed:", err);
+  });
+} else {
+  console.log("BOT_TOKEN not defined; only running the interactions proxy.");
+}
+
+
+// Clean shutdown (when EasyPanel sends SIGTERM on redeploy)
 process.on("SIGTERM", () => {
   console.log("SIGTERM received");
   server.close(() => process.exit(0));

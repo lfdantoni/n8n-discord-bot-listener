@@ -19,6 +19,7 @@
   "homepage": "https://github.com/lfdantoni/n8n-discord-bot-listener#readme",
   "description": "",
   "dependencies": {
+    "discord.js": "^14.22.1",
     "express": "^5.1.0",
     "node-fetch": "^3.3.2"
   }
