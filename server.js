@@ -108,7 +108,22 @@ if (BOT_TOKEN) {
 
       const payload = {
         event: "message_create",
-        message: JSON.stringify(message)
+        message,
+        // guild_id: message.guildId || null,
+        // channel_id: message.channelId,
+        // message_id: message.id,
+        // author: {
+        //   id: message.author.id,
+        //   username: message.author.username,
+        //   discriminator: message.author.discriminator,
+        //   tag: message.author.tag,
+        // },
+        // content: message.content ?? "",
+        // attachments: Array.from(message.attachments.values()).map(a => ({
+        //   id: a.id, url: a.url, content_type: a.contentType || null, size: a.size, filename: a.name
+        // })),
+        attachmentsRaw: Array.from(message.attachments.values()),
+        timestamp: message.createdAt?.toISOString() || new Date().toISOString(),
       };
 
       // Simple example: if you want to react locally:
