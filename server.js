@@ -138,7 +138,7 @@ if (BOT_TOKEN) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload),
         });
-      } else {
+
         console.log("msg:", payload);
       }
     } catch (e) {
