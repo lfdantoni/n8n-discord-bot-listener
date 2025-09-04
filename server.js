@@ -6,13 +6,14 @@ import { Client, GatewayIntentBits, Events, Partials } from "discord.js";
 const app = express();
 app.use(express.raw({ type: "*/*" })); // raw, no JSON parsing
 
-
 // ====== REQUIRED ENV VARS ======
-const PUBLIC_KEY = (process.env.DISCORD_PUBLIC_KEY || "").trim();        // Public Key (HEX 64 chars or PEM)
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;                      // n8n PRODUCTION webhook for slash commands
-const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;                          // Bot token (for Gateway)
-const CHANNEL_IDS = (process.env.CHANNEL_IDS || "")                       // IDs of channels to listen to, comma-separated
-  .split(",").map(s => s.trim()).filter(Boolean);
+const PUBLIC_KEY = (process.env.DISCORD_PUBLIC_KEY || "").trim(); // Public Key (HEX 64 chars or PEM)
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL; // n8n PRODUCTION webhook for slash commands
+const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN; // Bot token (for Gateway)
+const CHANNEL_IDS = (process.env.CHANNEL_IDS || "") // Channel IDs to listen to, comma-separated
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 const PORT = process.env.PORT || 3000;
 
 // Helper function to transform the public key (hex → SPKI)
@@ -55,7 +56,7 @@ app.post("/interactions", async (req, res) => {
   // (3) Slash command or others => immediate ACK (deferred)
   if (body.type === 2) {
     console.log("sending ACK");
-    // Respond to Discord NOW (avoids timeout)
+    // Respond to Discord NOW (prevents timeout)
     res.setHeader("content-type", "application/json");
     res.status(200).send(JSON.stringify({ type: 5 }));
 
@@ -77,9 +78,73 @@ app.post("/interactions", async (req, res) => {
   res.status(200).json({ type: 5 });
 });
 
+// Signed URL
+const HMAC_SECRET = process.env.HMAC_SECRET || "cambia-esto";
+
+// Utility: base64url
+const b64u = (buf) =>
+  buf
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+
+function sign(fid, expUnix) {
+  const data = `${fid}.${expUnix}`;
+  const mac = crypto.createHmac("sha256", HMAC_SECRET).update(data).digest();
+  return b64u(mac);
+}
+
+function verifySignature(fid, exp, sig) {
+  if (!fid || !exp || !sig) return false;
+  if (Date.now() / 1000 > exp) return false; // expired
+  const expected = sign(fid, exp);
+  // time-safe compare
+  return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+}
+
+app.get("/ig-image", async (req, res) => {
+  try {
+    const fid = String(req.query.fid || "");
+    const exp = Number(req.query.exp || 0);
+    const sig = String(req.query.sig || "");
+
+    if (!verifySignature(fid, exp, sig)) {
+      return res.status(403).send("Invalid or expired signature");
+    }
+
+    // Direct public URL from Drive (binary).
+    // For small images, this usually suffices:
+    const driveUrl = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(
+      fid
+    )}`;
+
+    const driveResp = await fetch(driveUrl, {
+      redirect: "follow",
+      // Note: do not send cookies; IG does not use them.
+    });
+
+    if (!driveResp.ok) {
+      return res.status(502).send(`Drive fetch error: ${driveResp.status}`);
+    }
+
+    // Try to propagate content-type if provided; otherwise, force something reasonable
+    const ct = driveResp.headers.get("content-type") || "image/jpeg";
+    res.setHeader("Content-Type", ct);
+    res.setHeader("Cache-Control", "no-store"); // IG only needs to read once
+    // If you know the size:
+    const cl = driveResp.headers.get("content-length");
+    if (cl) res.setHeader("Content-Length", cl);
+
+    // Binary stream
+    driveResp.body.pipe(res);
+  } catch (err) {
+    res.status(500).send(`Proxy error: ${err.message}`);
+  }
+});
+
 app.get("/healthz", (_, res) => res.send("ok"));
 const server = app.listen(PORT, () => console.log(`proxy on :${PORT}`));
-
 
 // ====== Discord.js: listen to channel messages ======
 if (BOT_TOKEN) {
@@ -104,7 +169,8 @@ if (BOT_TOKEN) {
   client.on(Events.MessageCreate, async (message) => {
     try {
       // if (message.author?.bot) return; // ignore bots
-      if (CHANNEL_IDS.length && !CHANNEL_IDS.includes(message.channelId)) return;
+      if (CHANNEL_IDS.length && !CHANNEL_IDS.includes(message.channelId))
+        return;
 
       const payload = {
         event: "message_create",
@@ -146,13 +212,12 @@ if (BOT_TOKEN) {
     }
   });
 
-  client.login(BOT_TOKEN).catch(err => {
+  client.login(BOT_TOKEN).catch((err) => {
     console.error("discord login failed:", err);
   });
 } else {
   console.log("BOT_TOKEN not defined; only running the interactions proxy.");
 }
-
 
 // Clean shutdown (when EasyPanel sends SIGTERM on redeploy)
 process.on("SIGTERM", () => {
