@@ -81,26 +81,24 @@ app.post("/interactions", async (req, res) => {
 // Signed URL
 const HMAC_SECRET = process.env.HMAC_SECRET || "cambia-esto";
 
-// Utility: base64url
-const b64u = (buf) =>
-  buf
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-
-function sign(fid, expUnix) {
+function signHex(fid, expUnix) {
   const data = `${fid}.${expUnix}`;
-  const mac = crypto.createHmac("sha256", HMAC_SECRET).update(data).digest();
-  return b64u(mac);
+  // 64 chars hex
+  return crypto.createHmac("sha256", HMAC_SECRET).update(data).digest("hex");
 }
 
-function verifySignature(fid, exp, sig) {
-  if (!fid || !exp || !sig) return false;
-  if (Date.now() / 1000 > exp) return false; // expired
-  const expected = sign(fid, exp);
-  // time-safe compare
-  return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+function verifySignature(fid, exp, sigHex) {
+  if (!fid || !exp || !sigHex) return false;
+  if (Math.floor(Date.now() / 1000) > exp) return false;
+
+  const expectedHex = signHex(fid, exp);
+  // Igualar longitudes SIEMPRE antes de timingSafeEqual
+  if (sigHex.length !== expectedHex.length) return false;
+
+  // Comparamos en tiempo constante sobre buffers de igual largo
+  const a = Buffer.from(sigHex, "utf8");
+  const b = Buffer.from(expectedHex, "utf8");
+  return crypto.timingSafeEqual(a, b);
 }
 
 app.get("/ig-image", async (req, res) => {
