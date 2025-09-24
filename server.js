@@ -127,7 +127,7 @@ app.get("/ig-image", async (req, res) => {
     }
 
     // Try to propagate content-type if provided; otherwise, force something reasonable
-    const ct = driveResp.headers.get("content-type") || "image/jpeg";
+    const ct = "image/jpeg";
     res.setHeader("Content-Type", ct);
     res.setHeader("Cache-Control", "no-store"); // IG only needs to read once
     // If you know the size:
